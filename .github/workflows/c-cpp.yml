@@ -1,0 +1,72 @@
+name: Compile-VSOMEIP
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  compile_vsomeip:
+    runs-on: windows-latest
+    steps:
+    - name: Windows - Install boost 1.78.0
+      uses: MarkusJx/install-boost@v2.4.4
+      id: Boost
+      with:
+          boost_version: 1.78.0
+          platform: windows
+          boost_install_dir: C:\local
+          toolset: msvc
+          arch: x86
+          cache: true
+
+    - uses: actions/checkout@v3
+
+    - name: Clone capicxx-core-runtime
+      uses: GuillaumeFalourd/clone-github-repo-action@v2.2
+      with:
+          depth: 1
+          branch: '3.2.3-r7'
+          owner: 'COVESA'
+          repository: 'capicxx-core-runtime'
+
+    - name: Build & Install CAPICXX-CORE-RUNTIME
+      run: |
+          cd capicxx-core-runtime
+          mkdir build
+          cd build
+          cmake ../
+          cmake --build . --config Release
+          cmake --install . --prefix "C:/local/capicxx-core-runtime"
+
+    - name: Clone vsomeip
+      uses: GuillaumeFalourd/clone-github-repo-action@v2.2
+      with:
+          depth: 1
+          branch: '3.4.10'
+          owner: 'COVESA'
+          repository: 'vsomeip'
+
+    - name: Build & Install VSOMEIP
+      run: |
+          cd vsomeip
+          mkdir build
+          cd build
+          cmake -DBOOST_ROOT=C:\local\boost\boost ../
+          cmake --build . --config Release
+          cmake --install . --prefix "C:/local/vsomeip"
+
+    - name: Build & Install CAPICXX-SOMEIP-RUNTIME
+      run: |
+          mkdir build
+          cd build
+          set vsomeip3_DIR=C:/local/vsomeip/CMake/
+          set CommonAPI_DIR=C:/local/capicxx-core-runtime/cmake/
+          cmake -DBOOST_ROOT=C:\local\boost\boost ../
+          cmake --build . --config Release
+          cmake --install . --prefix "C:/local/capicxx-core-runtime"
+
+    - name: Check GIT
+      run: |
+          git clone --branch "master" https://github.com/COVESA/dlt-viewer.git

@@ -1,0 +1,46 @@
+From 8c207a14a9c5f851ceba64abf5eaad219731b6a3 Mon Sep 17 00:00:00 2001
+From: Alexis COMPAIN <alexis.compain@vaillant-group.com>
+Date: Tue, 24 Oct 2023 21:20:25 +0200
+Subject: [PATCH] Fix compatibility msvc & boost 1.65+
+
+Apply patch from Covesa issue #456
+https://github.com/COVESA/vsomeip/issues/459
+
+[NEEXT-6786]
+---
+ .../endpoints/src/udp_server_endpoint_impl.cpp       | 12 ++++++++++++
+ 1 file changed, 12 insertions(+)
+
+diff --git a/implementation/endpoints/src/udp_server_endpoint_impl.cpp b/implementation/endpoints/src/udp_server_endpoint_impl.cpp
+index 440cbcf..6809592 100644
+--- a/implementation/endpoints/src/udp_server_endpoint_impl.cpp
++++ b/implementation/endpoints/src/udp_server_endpoint_impl.cpp
+@@ -240,6 +240,7 @@ void udp_server_endpoint_impl::receive_multicast(uint8_t _multicast_id) {
+ 
+     if (_multicast_id == multicast_id_ && multicast_socket_ && multicast_socket_->is_open()) {
+ #if VSOMEIP_BOOST_VERSION >= 106600
++    #ifdef __linux__
+         udp_server_endpoint_impl_receive_op its_operation {
+             *multicast_socket_,
+             multicast_remote_,
+@@ -260,6 +261,17 @@ void udp_server_endpoint_impl::receive_multicast(uint8_t _multicast_id) {
+             std::numeric_limits<size_t>::min()
+         };
+         multicast_socket_->async_wait(socket_type::wait_read, its_operation);
++    #else
++        multicast_socket_->async_receive_from(
++            boost::asio::buffer(&multicast_recv_buffer_[0], max_message_size_),
++            multicast_remote_,
++            [self = std::dynamic_pointer_cast<udp_server_endpoint_impl>(shared_from_this()),
++            multicast_id = _multicast_id, multicast_remote = multicast_remote_](boost::system::error_code ec, std::size_t length)
++            {            
++                self->on_multicast_received(ec, length, multicast_id, multicast_remote.address());
++            }
++        );
++    #endif
+ #else
+         multicast_socket_->async_receive_from(
+             boost::asio::buffer(&multicast_recv_buffer_[0], max_message_size_),
+-- 
+2.43.0.windows.1
+
